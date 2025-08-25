@@ -1,0 +1,273 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model bundle_components {
+  id                                               String   @id
+  bundleId                                         String
+  componentId                                      String
+  quantityNeeded                                   Int
+  products_bundle_components_bundleIdToproducts    products @relation("bundle_components_bundleIdToproducts", fields: [bundleId], references: [id], onDelete: Cascade)
+  products_bundle_components_componentIdToproducts products @relation("bundle_components_componentIdToproducts", fields: [componentId], references: [id], onDelete: Cascade)
+
+  @@unique([bundleId, componentId])
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model comments {
+  comment String?
+
+  @@ignore
+}
+
+model customer_addresses {
+  id         String    @id
+  customerId String    @unique
+  street     String
+  city       String
+  state      String
+  zip        String
+  country    String
+  updatedAt  DateTime
+  customers  customers @relation(fields: [customerId], references: [id], onDelete: Cascade)
+}
+
+model customer_platforms {
+  id                 String    @id
+  customerId         String
+  platform           Platform
+  platformCustomerId String?
+  createdAt          DateTime  @default(now())
+  customers          customers @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, platform])
+}
+
+model customer_tags {
+  id         String    @id
+  customerId String
+  tag        String
+  createdAt  DateTime  @default(now())
+  customers  customers @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, tag])
+}
+
+model customers {
+  id                 String               @id
+  name               String
+  email              String               @unique
+  phone              String?
+  totalOrders        Int                  @default(0)
+  totalSpent         Float                @default(0)
+  lastOrderDate      DateTime?
+  status             CustomerStatus       @default(ACTIVE)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime
+  customer_addresses customer_addresses?
+  customer_platforms customer_platforms[]
+  customer_tags      customer_tags[]
+  orders             orders[]
+}
+
+model dashboard_metrics {
+  id          String    @id
+  metricType  String
+  date        DateTime
+  intValue    Int?
+  floatValue  Float?
+  stringValue String?
+  jsonValue   String?
+  platform    Platform?
+  createdAt   DateTime  @default(now())
+
+  @@unique([metricType, date, platform])
+}
+
+model order_items {
+  id          String    @id
+  orderId     String
+  productId   String?
+  productName String
+  sku         String?
+  quantity    Int
+  price       Float
+  orders      orders    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  products    products? @relation(fields: [productId], references: [id])
+}
+
+model order_shipping_addresses {
+  id      String @id
+  orderId String @unique
+  name    String
+  street  String
+  city    String
+  state   String
+  zip     String
+  country String
+  orders  orders @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model orders {
+  id                       String                    @id
+  orderId                  String                    @unique
+  customerId               String
+  platform                 Platform
+  status                   OrderStatus               @default(NEW)
+  total                    Float
+  currency                 String                    @default("USD")
+  paid                     Boolean                   @default(false)
+  trackingNumber           String?
+  orderDate                DateTime                  @default(now())
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime
+  order_items              order_items[]
+  order_shipping_addresses order_shipping_addresses?
+  customers                customers                 @relation(fields: [customerId], references: [id])
+}
+
+model platform_integrations {
+  id           String            @id
+  platform     Platform          @unique
+  status       IntegrationStatus @default(DISCONNECTED)
+  region       String?
+  credentials  String?
+  lastSync     DateTime?
+  syncEnabled  Boolean           @default(false)
+  productCount Int               @default(0)
+  lastError    String?
+  errorCount   Int               @default(0)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime
+}
+
+model platform_products {
+  id          String    @id
+  productId   String
+  platform    Platform
+  platformSku String?
+  platformId  String?
+  title       String?
+  description String?
+  isListed    Boolean   @default(false)
+  lastSync    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime
+  products    products  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, platform])
+}
+
+model product_prices {
+  id        String   @id
+  productId String
+  platform  Platform
+  price     Float
+  currency  String   @default("USD")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+  products  products @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, platform])
+}
+
+model products {
+  id                                                        String              @id
+  name                                                      String
+  sku                                                       String              @unique
+  image                                                     String?
+  category                                                  ProductCategory
+  description                                               String?
+  reorderPoint                                              Int?                @default(0)
+  tag                                                       String?
+  asin                                                      String?
+  weight                                                    Float?
+  weightUnit                                                String?             @default("kg")
+  supplierId                                                String?
+  buyPrice                                                  Float?
+  status                                                    ProductStatus       @default(ACTIVE)
+  createdAt                                                 DateTime            @default(now())
+  updatedAt                                                 DateTime
+  bundle_components_bundle_components_bundleIdToproducts    bundle_components[] @relation("bundle_components_bundleIdToproducts")
+  bundle_components_bundle_components_componentIdToproducts bundle_components[] @relation("bundle_components_componentIdToproducts")
+  order_items                                               order_items[]
+  platform_products                                         platform_products[]
+  product_prices                                            product_prices[]
+  suppliers                                                 suppliers?          @relation(fields: [supplierId], references: [id])
+  warehouse_stock                                           warehouse_stock?
+}
+
+model suppliers {
+  id        String     @id
+  name      String
+  email     String?
+  phone     String?
+  address   String?
+  isActive  Boolean    @default(true)
+  notes     String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime
+  products  products[]
+}
+
+model warehouse_stock {
+  id          String   @id
+  productId   String   @unique
+  total       Int      @default(0)
+  inOrder     Int      @default(0)
+  available   Int      @default(0)
+  awaiting    Int      @default(0)
+  reserved    Int      @default(0)
+  binLocation String?
+  updatedAt   DateTime
+  products    products @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum IntegrationStatus {
+  LIVE
+  INTEGRATING
+  ERRORED
+  DISCONNECTED
+}
+
+enum OrderStatus {
+  NEW
+  PREPARED
+  IN_PROGRESS
+  PENDING
+  SHIPPED
+  CANCELLED
+  COMPLETED
+}
+
+enum Platform {
+  EBAY
+  SHOPIFY
+  ETSY
+  MULTIORDERS
+}
+
+enum ProductCategory {
+  SIMPLE
+  CONFIGURABLE
+  MERGED
+  BUNDLED
+}
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+  LOW_STOCK
+  OUT_OF_STOCK
+}
